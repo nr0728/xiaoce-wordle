@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>每日猜词</title>
+    <style>
+        /* 基本样式 */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: Arial, sans-serif;
+            background: linear-gradient(135deg, #f1f1f1, #e2e2e2);
+            color: #333;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 600px;
+            padding: 30px;
+            background: #fff;
+            border-radius: 8px;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+            text-align: center;
+        }
+
+        header {
+            margin-bottom: 30px;
+        }
+
+        h1 {
+            font-size: 2.5rem;
+            color: #4A90E2;
+            text-transform: uppercase;
+        }
+
+        .game {
+            margin-top: 20px;
+        }
+
+        .date-picker {
+            margin-bottom: 20px;
+            position: relative;
+        }
+
+        input[type="date"] {
+            padding: 8px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            font-size: 1rem;
+            width: 100%;
+            box-sizing: border-box;
+            text-align: center;
+        }
+
+        .guess-section {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            margin-top: 20px;
+        }
+
+        input[type="text"] {
+            width: 80%;
+            padding: 10px;
+            margin-bottom: 10px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            font-size: 1rem;
+            text-align: center;
+        }
+
+        button {
+            padding: 10px 20px;
+            background-color: #4A90E2;
+            color: #fff;
+            border: none;
+            border-radius: 4px;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: background-color 0.3s ease;
+            margin: 5px;
+        }
+
+        button:hover {
+            background-color: #357ABD;
+        }
+
+        button:disabled {
+            background-color: #ccc;
+            cursor: not-allowed;
+        }
+
+        #result-message {
+            margin-top: 20px;
+            font-size: 1.2rem;
+            color: #27ae60;
+        }
+
+        .hidden {
+            display: none;
+        }
+
+        .scoreboard {
+            margin-top: 30px;
+            padding-top: 20px;
+            border-top: 2px solid #eee;
+        }
+
+        h2 {
+            font-size: 1.8rem;
+            color: #333;
+        }
+
+        #score-list {
+            margin-top: 20px;
+            list-style: none;
+            padding: 0;
+        }
+
+        #score-list li {
+            margin-bottom: 10px;
+            font-size: 1.1rem;
+            color: #555;
+            padding: 5px;
+            border-radius: 4px;
+        }
+
+        #score-list li.highlight {
+            background-color: #FFD700;
+            color: #000;
+        }
+
+        #duplicate-message {
+            margin-top: 10px;
+            color: #e74c3c;
+            font-size: 1rem;
+            display: none;
+        }
+
+        /* 新增按钮样式调整 */
+        .button-group {
+            display: flex;
+            justify-content: center;
+            margin-top: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>每日猜词</h1>
+        </header>
+
+        <section class="game">
+            <div class="date-picker">
+                <label for="date">选择日期：</label>
+                <input type="date" id="date" name="date">
+            </div>
+
+            <div class="guess-section">
+                <input type="text" id="word" placeholder="请输入猜测的词语">
+                <div class="button-group">
+                    <button id="submit-btn" onclick="submitGuess()" disabled>提交猜词</button>
+                    <button id="end-btn" onclick="endGuess()" class="hidden">结束猜词</button>
+                </div>
+            </div>
+
+            <div id="result-message" class="hidden"></div>
+            <div id="duplicate-message" class="hidden">你已经猜过这个词了，请尝试其他词。</div>
+
+            <div class="scoreboard">
+                <h2>得分排行榜</h2>
+                <ul id="score-list"></ul>
+            </div>
+        </section>
+    </div>
+
+    <script>
+        // script.js
+
+        let currentDate = '';
+        let scoreBoard = [];
+        let guessedWords = new Set();  // Set to track guessed words
+        let maxScore = 0; // 记录历史最高分
+        let lastGuessedWord = ''; // 记录最后猜测的词语
+
+        const dateInput = document.getElementById('date');
+        const submitBtn = document.getElementById('submit-btn');
+        const endBtn = document.getElementById('end-btn');
+        const wordInput = document.getElementById('word');
+
+        // 当选择日期时，启用提交按钮并禁用日期选择器，显示“结束猜词”按钮
+        dateInput.addEventListener('input', function() {
+            const dateValue = this.value;
+            if (dateValue) {
+                submitBtn.disabled = false;
+                endBtn.classList.remove('hidden');
+                currentDate = dateValue.replace(/-/g, ''); // 转换为 YYYYMMDD 格式
+                // 禁用日期选择器
+                dateInput.disabled = true;
+            } else {
+                submitBtn.disabled = true;
+                endBtn.classList.add('hidden');
+                // 启用日期选择器
+                dateInput.disabled = false;
+            }
+        });
+
+        // 在输入框中按下 Enter 键自动提交猜词
+        wordInput.addEventListener('keydown', function(event) {
+            if (event.key === 'Enter') {
+                event.preventDefault(); // 防止表单提交或其他默认行为
+                submitGuess();
+            }
+        });
+
+        function submitGuess() {
+            const word = wordInput.value.trim();
+            if (!word) return;
+
+            // 防止重复猜词
+            if (guessedWords.has(word)) {
+                document.getElementById('duplicate-message').style.display = 'block';
+                return;
+            } else {
+                document.getElementById('duplicate-message').style.display = 'none';
+            }
+
+            // 添加到已猜词集合
+            guessedWords.add(word);
+            lastGuessedWord = word; // 记录最后猜测的词语
+
+            fetch(`https://xiaoce.fun/api/v0/quiz/daily/GuessWord/guess?date=${currentDate}&word=${word}`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.correct) {
+                        document.getElementById('result-message').innerHTML = '恭喜，猜对了！';
+                        document.getElementById('result-message').style.color = '#27ae60';
+                        document.getElementById('result-message').classList.remove('hidden');
+                        // 自动结束猜词
+                        endGuess(true);
+                    } else {
+                        const score = (data.doubleScore * 100).toFixed(2);  // 计算并格式化分数
+                        const scoreEntry = { word: word, score: parseFloat(score) };
+                        scoreBoard.push(scoreEntry);
+                        scoreBoard.sort((a, b) => b.score - a.score); // 按分数排序
+
+                        if (scoreEntry.score > maxScore) {
+                            maxScore = scoreEntry.score;
+                        }
+
+                        updateScoreboard();
+                        document.getElementById('result-message').innerHTML = `未猜对，当前最高分数：${maxScore}%`;
+                        document.getElementById('result-message').style.color = '#e74c3c';
+                        document.getElementById('result-message').classList.remove('hidden');
+                    }
+
+                    // 清空输入框
+                    wordInput.value = '';
+                })
+                .catch(err => {
+                    console.error('请求失败', err);
+                });
+        }
+
+        function updateScoreboard() {
+            const scoreList = document.getElementById('score-list');
+            scoreList.innerHTML = ''; // 清空之前的分数
+
+            scoreBoard.forEach(entry => {
+                const li = document.createElement('li');
+                li.textContent = `${entry.word} - ${entry.score}%`;
+                // 如果是最后猜测的词语，添加高亮样式
+                if (entry.word === lastGuessedWord) {
+                    li.classList.add('highlight');
+                }
+                scoreList.appendChild(li);
+            });
+        }
+
+        function endGuess(isCorrect = false) {
+            // 禁用输入框和提交按钮
+            wordInput.disabled = true;
+            submitBtn.disabled = true;
+
+            // 隐藏“结束猜词”按钮
+            endBtn.classList.add('hidden');
+
+            // 显示“重试”按钮
+            if (!document.getElementById('retry-btn')) {
+                const retryBtn = document.createElement('button');
+                retryBtn.id = 'retry-btn';
+                retryBtn.textContent = '重试';
+                retryBtn.onclick = resetGame;
+                document.querySelector('.button-group').appendChild(retryBtn);
+            }
+
+            if (isCorrect) {
+                // 已在 submitGuess 中处理
+            }
+        }
+
+        function resetGame() {
+            // 重置所有元素以进行新一轮
+            dateInput.disabled = false;
+            dateInput.value = '';
+            wordInput.value = '';
+            wordInput.disabled = false;
+            submitBtn.disabled = true;
+            document.getElementById('result-message').classList.add('hidden');
+            document.getElementById('duplicate-message').style.display = 'none';
+            guessedWords.clear();  // 清除已猜词
+            scoreBoard = [];
+            maxScore = 0;
+            lastGuessedWord = '';
+            updateScoreboard();
+
+            // 移除“重试”按钮
+            const retryBtn = document.getElementById('retry-btn');
+            if (retryBtn) {
+                retryBtn.remove();
+            }
+
+            // 隐藏“结束猜词”按钮
+            endBtn.classList.add('hidden');
+        }
+    </script>
+</body>
+</html>
